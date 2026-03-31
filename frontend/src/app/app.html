@@ -1,0 +1,272 @@
+<main class="shell">
+  <section class="intro-panel">
+    <div class="intro-copy">
+      <p class="eyebrow">Dependency Atlas / SQL Server</p>
+      <h1>Raport zależności procedur z flagą kontroli uprawnień.</h1>
+      <p class="lede">
+        Analiza startuje od wskazanych procedur, rozciąga się na zależności bezpośrednie lub
+        pośrednie i zaznacza obiekty, które warto ręcznie zweryfikować pod kątem uprawnień.
+      </p>
+    </div>
+
+    <div class="summary-grid">
+      @for (tile of summaryTiles(); track tile.label) {
+        <article class="summary-tile" [attr.data-tone]="tile.tone">
+          <span>{{ tile.label }}</span>
+          <strong>{{ tile.value }}</strong>
+        </article>
+      }
+    </div>
+
+    <section class="control-panel">
+      <label class="field">
+        <span>Procedures</span>
+        <textarea
+          [ngModel]="proceduresText()"
+          (ngModelChange)="proceduresText.set($event)"
+          name="procedures"
+          rows="6"
+          placeholder="dbo.usp_PenaltySummary&#10;security.usp_CheckPermissions"
+        ></textarea>
+      </label>
+
+      <div class="control-row">
+        <label class="switch">
+          <input
+            type="checkbox"
+            [ngModel]="includeTransitive()"
+            (ngModelChange)="includeTransitive.set($event)"
+            name="includeTransitive"
+          />
+          <span>Uwzględnij zależności pośrednie</span>
+        </label>
+
+        <label class="depth-field">
+          <span>Max depth</span>
+          <input
+            type="number"
+            min="1"
+            max="10"
+            [ngModel]="maxDepth()"
+            (ngModelChange)="setMaxDepth($event)"
+            name="maxDepth"
+          />
+        </label>
+      </div>
+
+      <div class="action-row">
+        <button class="primary-action" type="button" (click)="analyze()" [disabled]="loading()">
+          {{ loading() ? 'Analyzing…' : 'Build Graph' }}
+        </button>
+
+        <button class="secondary-action" type="button" (click)="exportGraph('json')" [disabled]="isBusy('json')">
+          {{ isBusy('json') ? 'Exporting…' : 'Export JSON' }}
+        </button>
+
+        <button class="secondary-action" type="button" (click)="exportGraph('csv')" [disabled]="isBusy('csv')">
+          {{ isBusy('csv') ? 'Exporting…' : 'Export CSV' }}
+        </button>
+      </div>
+    </section>
+
+    <div class="meta-strip">
+      <div>
+        <span class="meta-label">Input scope</span>
+        <strong>{{ procedureCount() }} procedure(s)</strong>
+      </div>
+      <div>
+        <span class="meta-label">Heuristics</span>
+        <strong>schema, database, unresolved, indirect objects</strong>
+      </div>
+      <div>
+        <span class="meta-label">Backend</span>
+        <strong>.NET + SQL Server on localhost:5199</strong>
+      </div>
+    </div>
+  </section>
+
+  <section class="graph-panel">
+    <div class="graph-header">
+      <div>
+        <p class="eyebrow">Graph View</p>
+        <h2>Rozkład zależności</h2>
+      </div>
+
+      @if (graph()?.generatedAtUtc; as generatedAt) {
+        <div class="generated-at">
+          Ostatnia aktualizacja
+          <strong>{{ generatedAt | date: 'yyyy-MM-dd HH:mm:ss' }}</strong>
+        </div>
+      }
+    </div>
+
+    @if (errorMessage()) {
+      <div class="message error">{{ errorMessage() }}</div>
+    }
+
+    @if (!hasGraphResult()) {
+      <div class="graph-empty">
+        <p>Graf pojawi się po uruchomieniu analizy.</p>
+        <ul>
+          <li>Podaj pełne nazwy procedur, np. `dbo.usp_PenaltySummary`.</li>
+          <li>Włącz zależności pośrednie, jeśli chcesz przejść przez zagnieżdżone procedury.</li>
+          <li>Eksport pobiera dokładnie ten sam zestaw danych, który widzisz na planszy.</li>
+        </ul>
+      </div>
+    } @else if (!hasGraph()) {
+      <div class="graph-empty">
+        @if (hasUnfilteredGraph()) {
+          <p>Aktywne filtry ukryły wszystkie węzły z aktualnego widoku.</p>
+          <ul>
+            <li>Włącz co najmniej jeden typ w sekcji filtrów poniżej.</li>
+            <li>Użyj `Pokaż wszystkie`, jeśli chcesz wrócić do pełnego grafu.</li>
+          </ul>
+        } @else {
+          <p>Analiza nie zwróciła żadnych węzłów dla podanego wejścia.</p>
+          <ul>
+            <li>Sprawdź, czy nazwy procedur są pełne i wskazują poprawny schemat.</li>
+            <li>Jeżeli to potrzebne, zwiększ zakres przez zależności pośrednie lub większy `Max depth`.</li>
+          </ul>
+        }
+      </div>
+    } @else {
+      <div class="graph-shell" #graphShell>
+        <div class="graph-canvas" [style.width.px]="graphLayout().width" [style.height.px]="graphLayout().height">
+          <svg
+            class="graph-links"
+            [attr.viewBox]="'0 0 ' + graphLayout().width + ' ' + graphLayout().height"
+            preserveAspectRatio="xMinYMin meet"
+          >
+            @for (path of graphLayout().edges; track trackEdge($index, path)) {
+              <path
+                class="graph-link"
+                [class.transitive]="path.edge.isTransitive"
+                [class.alert]="path.isAlert"
+                [attr.d]="path.path"
+              />
+            }
+          </svg>
+
+          @for (point of graphLayout().nodes; track trackNode($index, point)) {
+            <button
+              class="graph-node"
+              [class.selected]="selectedNode()?.id === point.node.id"
+              [class.requires-check]="point.node.requiresPermissionCheck"
+              [attr.data-tone]="nodeTone(point.node.type)"
+              [style.left.px]="point.x"
+              [style.top.px]="point.y"
+              type="button"
+              (click)="selectNode(point.node.id)"
+            >
+              <span class="node-type">{{ nodeTypeLabel(point.node.type) }}</span>
+              <strong>{{ point.node.fullName }}</strong>
+              <div class="node-meta">
+                <span>Depth {{ point.node.depth }}</span>
+                @if (point.node.requiresPermissionCheck) {
+                  <span>Check hint</span>
+                }
+              </div>
+            </button>
+          }
+        </div>
+      </div>
+    }
+
+    <div class="legend-toolbar">
+      <p class="eyebrow">Type Filters</p>
+      @if (hasInactiveLegendFilters()) {
+        <button class="legend-reset" type="button" (click)="resetLegendFilters()">Pokaż wszystkie</button>
+      }
+    </div>
+
+    <div class="legend">
+      @for (item of legendItems; track item.label) {
+        <button
+          class="legend-item"
+          [class.is-active]="isLegendTypeActive(item.type)"
+          [attr.aria-pressed]="isLegendTypeActive(item.type)"
+          [attr.data-tone]="nodeTone(item.type)"
+          type="button"
+          (click)="toggleLegendType(item.type)"
+        >
+          <strong>{{ item.label }}</strong>
+          <p>{{ item.note }}</p>
+        </button>
+      }
+    </div>
+  </section>
+
+  <aside class="detail-panel">
+    <div class="detail-header">
+      <p class="eyebrow">Node Detail</p>
+      <h2>{{ selectedNode()?.fullName ?? 'Brak zaznaczenia' }}</h2>
+    </div>
+
+    @if (selectedNode(); as node) {
+      <div class="detail-grid">
+        <article>
+          <span>Type</span>
+          <strong>{{ nodeTypeLabel(node.type) }}</strong>
+        </article>
+        <article>
+          <span>Database</span>
+          <strong>{{ node.database || 'current' }}</strong>
+        </article>
+        <article>
+          <span>Schema</span>
+          <strong>{{ node.schema }}</strong>
+        </article>
+        <article>
+          <span>Depth</span>
+          <strong>{{ node.depth }}</strong>
+        </article>
+      </div>
+
+      <div class="detail-block">
+        <span class="detail-label">Classification</span>
+        <p>
+          {{ node.sourceType }}
+          @if (node.isEntryPoint) {
+            <em> / entry point</em>
+          }
+          @if (node.isUnresolved) {
+            <em> / unresolved</em>
+          }
+        </p>
+      </div>
+
+      <div class="detail-block">
+        <span class="detail-label">Permission review</span>
+        @if (node.permissionHints.length > 0) {
+          <ul class="hint-list">
+            @for (hint of node.permissionHints; track hint) {
+              <li>{{ hint }}</li>
+            }
+          </ul>
+        } @else {
+          <p>Brak heurystyk wymagających dodatkowej weryfikacji.</p>
+        }
+      </div>
+
+      <div class="detail-block">
+        <span class="detail-label">Connections</span>
+        @if (relatedEdges().length > 0) {
+          <ul class="connection-list">
+            @for (relation of relatedEdges(); track relation.edge.id) {
+              <li>
+                <strong>{{ relation.direction === 'out' ? 'uses' : 'used by' }}</strong>
+                <span>{{ relation.otherNode?.fullName ?? relation.edge.id }}</span>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p>Ten węzeł nie ma połączeń w aktualnym wyniku.</p>
+        }
+      </div>
+    } @else {
+      <p class="detail-empty">
+        Zaznacz węzeł na planszy, aby zobaczyć szczegóły obiektu, klasyfikację oraz heurystyki.
+      </p>
+    }
+  </aside>
+</main>
