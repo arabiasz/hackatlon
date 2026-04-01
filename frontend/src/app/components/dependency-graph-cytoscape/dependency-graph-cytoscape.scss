@@ -1,0 +1,230 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.cy-shell {
+  position: relative;
+  min-width: 0;
+  min-height: clamp(440px, 68vh, 760px);
+  overflow: hidden;
+  border-radius: 24px;
+  border: 1px solid rgba(19, 37, 36, 0.1);
+  background:
+    radial-gradient(circle at 18% 18%, rgba(201, 160, 90, 0.16), transparent 30%),
+    radial-gradient(circle at 84% 15%, rgba(20, 82, 79, 0.16), transparent 28%),
+    linear-gradient(180deg, rgba(255, 252, 246, 0.98), rgba(245, 239, 227, 0.9));
+}
+
+.cy-shell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(19, 37, 36, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(19, 37, 36, 0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+  opacity: 0.34;
+}
+
+.cy-overlay {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 2;
+  display: grid;
+  gap: 0.45rem;
+  max-width: min(30rem, calc(100% - 2rem));
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(19, 37, 36, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 249, 239, 0.9);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 20px 40px rgba(18, 35, 33, 0.08);
+  pointer-events: none;
+}
+
+.cy-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 0.32rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(164, 77, 43, 0.12);
+  color: var(--tone-rust);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.cy-overlay p {
+  margin: 0;
+  color: var(--tone-muted);
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.cy-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.cy-metrics span {
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(19, 37, 36, 0.07);
+  color: var(--tone-ink);
+  font-size: 0.74rem;
+}
+
+.cy-stage {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+}
+
+.cy-controls {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.cy-layout-field {
+  position: relative;
+  display: grid;
+  gap: 0.26rem;
+  min-width: 0;
+}
+
+.cy-layout-field span {
+  padding-left: 0.2rem;
+  color: var(--tone-muted);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.cy-layout-field::after {
+  content: '';
+  position: absolute;
+  right: 0.95rem;
+  bottom: 0.88rem;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 1.5px solid rgba(19, 37, 36, 0.5);
+  border-bottom: 1.5px solid rgba(19, 37, 36, 0.5);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
+.cy-layout-select,
+.cy-control-button,
+.cy-control-reset {
+  border: 1px solid rgba(19, 37, 36, 0.12);
+  background: rgba(255, 249, 239, 0.94);
+  color: var(--tone-ink);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 14px 28px rgba(18, 35, 33, 0.08);
+}
+
+.cy-layout-select {
+  min-width: 10.5rem;
+  padding: 0.72rem 2.15rem 0.72rem 0.95rem;
+  border-radius: 16px;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+  appearance: none;
+  transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.cy-zoom-readout {
+  min-width: 3.2rem;
+  padding: 0.56rem 0.62rem;
+  border: 1px solid rgba(19, 37, 36, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 249, 239, 0.88);
+  color: var(--tone-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 0.05em;
+  backdrop-filter: blur(12px);
+}
+
+.cy-control-button {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.cy-control-reset {
+  border-radius: 999px;
+  padding: 0.68rem 0.95rem;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.cy-layout-select:hover,
+.cy-control-button:hover,
+.cy-control-reset:hover {
+  transform: translateY(-1px);
+  border-color: rgba(19, 37, 36, 0.24);
+  box-shadow: 0 18px 32px rgba(18, 35, 33, 0.12);
+}
+
+.cy-layout-select:focus-visible,
+.cy-control-button:focus-visible,
+.cy-control-reset:focus-visible {
+  outline: 2px solid rgba(20, 82, 79, 0.35);
+  outline-offset: 2px;
+}
+
+@media (max-width: 720px) {
+  .cy-shell {
+    min-height: 420px;
+    border-radius: 20px;
+  }
+
+  .cy-overlay {
+    top: 0.8rem;
+    left: 0.8rem;
+    max-width: calc(100% - 1.6rem);
+    padding: 0.8rem 0.9rem;
+  }
+
+  .cy-controls {
+    top: auto;
+    right: 0.8rem;
+    bottom: 0.8rem;
+    left: 0.8rem;
+    justify-content: stretch;
+  }
+
+  .cy-layout-field {
+    flex: 1 1 100%;
+  }
+
+  .cy-layout-select {
+    width: 100%;
+  }
+}

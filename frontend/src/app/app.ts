@@ -1,17 +1,20 @@
 import { CommonModule, DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, ElementRef, computed, effect, inject, signal, viewChild } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import {
   DependencyEdge,
   DependencyGraphRequest,
   DependencyGraphResponse,
-  DependencyNode,
   DependencyGraphSummary,
+  DependencyNode,
   DependencyNodeType
 } from './models/dependency-graph';
+import { DependencyGraphCytoscapeComponent } from './components/dependency-graph-cytoscape/dependency-graph-cytoscape';
+import { DependencyGraphViewComponent } from './components/dependency-graph-view/dependency-graph-view';
 import { DependencyApiService, ExportFormat } from './services/dependency-api.service';
+import { buildGraphIndex, edgesForNode } from './utils/graph-index';
 
 type LegendItem = {
   type: DependencyNodeType;
@@ -25,30 +28,23 @@ type SummaryTile = {
   tone: 'ink' | 'rust' | 'teal' | 'gold';
 };
 
-type GraphPoint = {
-  node: DependencyNode;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
+type GraphRenderer = 'atlas' | 'cytoscape';
 
-type GraphEdgePath = {
+type RelatedEdgeViewModel = {
   edge: DependencyEdge;
-  path: string;
-  isAlert: boolean;
-};
-
-type GraphLayout = {
-  width: number;
-  height: number;
-  nodes: GraphPoint[];
-  edges: GraphEdgePath[];
+  direction: 'out' | 'in';
+  otherNode: DependencyNode | undefined;
 };
 
 @Component({
   selector: 'app-root',
-  imports: [CommonModule, FormsModule, DatePipe],
+  imports: [
+    CommonModule,
+    FormsModule,
+    DatePipe,
+    DependencyGraphViewComponent,
+    DependencyGraphCytoscapeComponent
+  ],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
@@ -60,11 +56,10 @@ export class App {
   protected readonly maxDepth = signal(4);
   protected readonly graph = signal<DependencyGraphResponse | null>(null);
   protected readonly selectedNodeId = signal<string | null>(null);
+  protected readonly graphRenderer = signal<GraphRenderer>('cytoscape');
   protected readonly loading = signal(false);
   protected readonly errorMessage = signal('');
   protected readonly exportInProgress = signal<ExportFormat | null>(null);
-  protected readonly graphShellRef = viewChild<ElementRef<HTMLDivElement>>('graphShell');
-  private readonly graphViewportWidth = signal(0);
   protected readonly legendItems: LegendItem[] = [
     { type: 'Procedure', label: 'Procedure', note: 'węzeł wykonywalny, może otwierać kolejne zależności' },
     { type: 'Table', label: 'Table', note: 'docelowy obiekt danych bezpośrednio używany przez procedurę' },
@@ -76,27 +71,6 @@ export class App {
   ];
   private readonly allLegendTypes = this.legendItems.map((item) => item.type);
   protected readonly activeNodeTypes = signal<DependencyNodeType[]>([...this.allLegendTypes]);
-
-  constructor() {
-    effect((onCleanup) => {
-      const graphShell = this.graphShellRef()?.nativeElement;
-      if (!graphShell) {
-        this.graphViewportWidth.set(0);
-        return;
-      }
-
-      const syncWidth = () => this.graphViewportWidth.set(graphShell.clientWidth);
-      syncWidth();
-
-      if (typeof ResizeObserver === 'undefined') {
-        return;
-      }
-
-      const resizeObserver = new ResizeObserver(() => syncWidth());
-      resizeObserver.observe(graphShell);
-      onCleanup(() => resizeObserver.disconnect());
-    });
-  }
 
   protected readonly summaryTiles = computed<SummaryTile[]>(() => {
     const summary = this.graph()?.summary;
@@ -117,6 +91,7 @@ export class App {
 
     return this.filterGraph(graph, this.activeNodeTypes());
   });
+  protected readonly graphIndex = computed(() => buildGraphIndex(this.filteredGraph()));
 
   protected readonly hasGraphResult = computed(() => this.graph() !== null);
   protected readonly hasUnfilteredGraph = computed(() => (this.graph()?.nodes.length ?? 0) > 0);
@@ -132,34 +107,54 @@ export class App {
       return null;
     }
 
-    return graph.nodes.find((node) => node.id === selectedNodeId) ?? graph.nodes[0];
+    return (selectedNodeId ? this.graphIndex().nodesById.get(selectedNodeId) : undefined) ?? graph.nodes[0];
   });
 
   protected readonly relatedEdges = computed(() => {
-    const graph = this.filteredGraph();
     const selectedNode = this.selectedNode();
+    const graphIndex = this.graphIndex();
 
-    if (!graph || !selectedNode) {
-      return [];
+    if (!selectedNode) {
+      return [] as RelatedEdgeViewModel[];
     }
 
-    return graph.edges
-      .filter((edge) => edge.sourceId === selectedNode.id || edge.targetId === selectedNode.id)
-      .map((edge) => {
+    return edgesForNode(graphIndex, selectedNode.id)
+      .map<RelatedEdgeViewModel>((edge) => {
         const otherNodeId = edge.sourceId === selectedNode.id ? edge.targetId : edge.sourceId;
-        const otherNode = graph.nodes.find((node) => node.id === otherNodeId);
+        const otherNode = graphIndex.nodesById.get(otherNodeId);
 
         return {
           edge,
           direction: edge.sourceId === selectedNode.id ? 'out' : 'in',
           otherNode
         };
+      })
+      .sort((left, right) => {
+        const directionDelta = left.direction.localeCompare(right.direction);
+        if (directionDelta !== 0) {
+          return directionDelta;
+        }
+
+        return (left.otherNode?.fullName ?? left.edge.id).localeCompare(right.otherNode?.fullName ?? right.edge.id);
       });
   });
 
-  protected readonly graphLayout = computed(() => this.buildGraphLayout(this.filteredGraph(), this.graphViewportWidth()));
   protected readonly hasGraph = computed(() => (this.filteredGraph()?.nodes.length ?? 0) > 0);
   protected readonly procedureCount = computed(() => this.parseProcedures(this.proceduresText()).length);
+  protected readonly navigableNodes = computed(() => this.buildNavigableNodes(this.filteredGraph()));
+  protected readonly selectedNodePosition = computed(() => {
+    const selectedNode = this.selectedNode();
+    if (!selectedNode) {
+      return -1;
+    }
+
+    return this.navigableNodes().findIndex((node) => node.id === selectedNode.id);
+  });
+  protected readonly canSelectPreviousNode = computed(() => this.selectedNodePosition() > 0);
+  protected readonly canSelectNextNode = computed(() => {
+    const index = this.selectedNodePosition();
+    return index >= 0 && index < this.navigableNodes().length - 1;
+  });
 
   protected async analyze(): Promise<void> {
     const request = this.buildRequest();
@@ -218,6 +213,41 @@ export class App {
     this.selectedNodeId.set(nodeId);
   }
 
+  protected selectPreviousNode(): void {
+    const index = this.selectedNodePosition();
+    if (index <= 0) {
+      return;
+    }
+
+    this.selectedNodeId.set(this.navigableNodes()[index - 1].id);
+  }
+
+  protected selectNextNode(): void {
+    const index = this.selectedNodePosition();
+    const nodes = this.navigableNodes();
+    if (index < 0 || index >= nodes.length - 1) {
+      return;
+    }
+
+    this.selectedNodeId.set(nodes[index + 1].id);
+  }
+
+  protected selectRelatedNode(relation: RelatedEdgeViewModel): void {
+    if (!relation.otherNode) {
+      return;
+    }
+
+    this.selectedNodeId.set(relation.otherNode.id);
+  }
+
+  protected setGraphRenderer(renderer: GraphRenderer): void {
+    this.graphRenderer.set(renderer);
+  }
+
+  protected isGraphRenderer(renderer: GraphRenderer): boolean {
+    return this.graphRenderer() === renderer;
+  }
+
   protected toggleLegendType(type: DependencyNodeType): void {
     const activeNodeTypes = this.activeNodeTypes();
 
@@ -267,14 +297,6 @@ export class App {
     return this.exportInProgress() === format;
   }
 
-  protected trackNode(_: number, point: GraphPoint): string {
-    return point.node.id;
-  }
-
-  protected trackEdge(_: number, path: GraphEdgePath): string {
-    return path.edge.id;
-  }
-
   private buildRequest(): DependencyGraphRequest {
     return {
       procedures: this.parseProcedures(this.proceduresText()),
@@ -300,12 +322,25 @@ export class App {
     const edges = graph.edges.filter(
       (edge) => visibleNodeIds.has(edge.sourceId) && visibleNodeIds.has(edge.targetId)
     );
+    let permissionHints = 0;
+    let maxObservedDepth = 0;
+
+    for (const node of nodes) {
+      if (node.requiresPermissionCheck) {
+        permissionHints += 1;
+      }
+
+      if (node.depth > maxObservedDepth) {
+        maxObservedDepth = node.depth;
+      }
+    }
+
     const summary: DependencyGraphSummary = {
       ...graph.summary,
       nodes: nodes.length,
       edges: edges.length,
-      permissionHints: nodes.filter((node) => node.requiresPermissionCheck).length,
-      maxObservedDepth: nodes.length === 0 ? 0 : Math.max(...nodes.map((node) => node.depth))
+      permissionHints,
+      maxObservedDepth
     };
 
     return {
@@ -354,96 +389,29 @@ export class App {
     return `${lines.join('\n')}\n`;
   }
 
-  private escapeCsv(value: string): string {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-
-  private buildGraphLayout(graph: DependencyGraphResponse | null, viewportWidth: number): GraphLayout {
-    if (!graph?.nodes.length) {
-      return { width: 0, height: 0, nodes: [], edges: [] };
+  private buildNavigableNodes(graph: DependencyGraphResponse | null) {
+    if (!graph) {
+      return [];
     }
 
-    const groupedByDepth = new Map<number, DependencyNode[]>();
-    for (const node of graph.nodes) {
-      const column = groupedByDepth.get(node.depth) ?? [];
-      column.push(node);
-      groupedByDepth.set(node.depth, column);
-    }
-
-    const columns = [...groupedByDepth.entries()]
-      .sort((left, right) => left[0] - right[0])
-      .map(([depth, nodes]) => ({
-        depth,
-        nodes: nodes.sort((left, right) => {
-          const entryDelta = Number(right.isEntryPoint) - Number(left.isEntryPoint);
-          if (entryDelta !== 0) {
-            return entryDelta;
-          }
-
-          const typeDelta = left.type.localeCompare(right.type);
-          return typeDelta !== 0 ? typeDelta : left.fullName.localeCompare(right.fullName);
-        })
-      }));
-
-    const nodeWidth = 248;
-    const nodeHeight = 104;
-    const rowGap = 132;
-    const padding = viewportWidth > 0 ? this.clamp(Math.round(viewportWidth * 0.06), 32, 76) : 76;
-    const defaultColumnStep = 310;
-    const minColumnStep = nodeWidth + 44;
-    const columnStep =
-      columns.length > 1 && viewportWidth > 0
-        ? Math.max(
-            minColumnStep,
-            Math.floor((viewportWidth - padding * 2 - nodeWidth) / (columns.length - 1))
-          )
-        : defaultColumnStep;
-    const positionedNodes: GraphPoint[] = [];
-
-    columns.forEach((column, columnIndex) => {
-      column.nodes.forEach((node, rowIndex) => {
-        positionedNodes.push({
-          node,
-          x: padding + columnIndex * columnStep,
-          y: padding + rowIndex * rowGap,
-          width: nodeWidth,
-          height: nodeHeight
-        });
-      });
-    });
-
-    const nodeIndex = new Map(positionedNodes.map((point) => [point.node.id, point]));
-    const edgePaths: GraphEdgePath[] = graph.edges.flatMap((edge) => {
-      const source = nodeIndex.get(edge.sourceId);
-      const target = nodeIndex.get(edge.targetId);
-
-      if (!source || !target) {
-        return [];
+    return [...graph.nodes].sort((left, right) => {
+      const depthDelta = left.depth - right.depth;
+      if (depthDelta !== 0) {
+        return depthDelta;
       }
 
-      const x1 = source.x + source.width;
-      const y1 = source.y + source.height / 2;
-      const x2 = target.x;
-      const y2 = target.y + target.height / 2;
-      const midX = (x1 + x2) / 2;
+      const entryDelta = Number(right.isEntryPoint) - Number(left.isEntryPoint);
+      if (entryDelta !== 0) {
+        return entryDelta;
+      }
 
-      return [{
-        edge,
-        path: `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`,
-        isAlert: target.node.requiresPermissionCheck
-      }];
+      const typeDelta = left.type.localeCompare(right.type);
+      return typeDelta !== 0 ? typeDelta : left.fullName.localeCompare(right.fullName);
     });
-
-    const contentWidth = padding + Math.max(...positionedNodes.map((point) => point.x + point.width));
-    const contentHeight = padding + Math.max(...positionedNodes.map((point) => point.y + point.height));
-    const height = Math.max(300, contentHeight);
-    const width = Math.max(viewportWidth, contentWidth);
-
-    return { width, height, nodes: positionedNodes, edges: edgePaths };
   }
 
-  private clamp(value: number, min: number, max: number): number {
-    return Math.min(max, Math.max(min, value));
+  private escapeCsv(value: string): string {
+    return `"${value.replace(/"/g, '""')}"`;
   }
 
   private describeError(error: unknown): string {

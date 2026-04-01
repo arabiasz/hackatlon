@@ -100,6 +100,36 @@
       }
     </div>
 
+    <div class="renderer-toolbar">
+      <div class="renderer-switch" role="group" aria-label="Graph renderer">
+        <button
+          class="renderer-option"
+          [class.is-active]="isGraphRenderer('cytoscape')"
+          type="button"
+          (click)="setGraphRenderer('cytoscape')"
+        >
+          Cytoscape POC
+        </button>
+
+        <button
+          class="renderer-option"
+          [class.is-active]="isGraphRenderer('atlas')"
+          type="button"
+          (click)="setGraphRenderer('atlas')"
+        >
+          Current Atlas
+        </button>
+      </div>
+
+      <p class="renderer-note">
+        {{
+          isGraphRenderer('cytoscape')
+            ? 'POC korzysta z renderera Cytoscape z zoomem, panem i podświetleniem sąsiedztwa.'
+            : 'To jest obecny widok warstwowy oparty o HTML + canvas.'
+        }}
+      </p>
+    </div>
+
     @if (errorMessage()) {
       <div class="message error">{{ errorMessage() }}</div>
     }
@@ -130,46 +160,21 @@
         }
       </div>
     } @else {
-      <div class="graph-shell" #graphShell>
-        <div class="graph-canvas" [style.width.px]="graphLayout().width" [style.height.px]="graphLayout().height">
-          <svg
-            class="graph-links"
-            [attr.viewBox]="'0 0 ' + graphLayout().width + ' ' + graphLayout().height"
-            preserveAspectRatio="xMinYMin meet"
-          >
-            @for (path of graphLayout().edges; track trackEdge($index, path)) {
-              <path
-                class="graph-link"
-                [class.transitive]="path.edge.isTransitive"
-                [class.alert]="path.isAlert"
-                [attr.d]="path.path"
-              />
-            }
-          </svg>
-
-          @for (point of graphLayout().nodes; track trackNode($index, point)) {
-            <button
-              class="graph-node"
-              [class.selected]="selectedNode()?.id === point.node.id"
-              [class.requires-check]="point.node.requiresPermissionCheck"
-              [attr.data-tone]="nodeTone(point.node.type)"
-              [style.left.px]="point.x"
-              [style.top.px]="point.y"
-              type="button"
-              (click)="selectNode(point.node.id)"
-            >
-              <span class="node-type">{{ nodeTypeLabel(point.node.type) }}</span>
-              <strong>{{ point.node.fullName }}</strong>
-              <div class="node-meta">
-                <span>Depth {{ point.node.depth }}</span>
-                @if (point.node.requiresPermissionCheck) {
-                  <span>Check hint</span>
-                }
-              </div>
-            </button>
-          }
-        </div>
-      </div>
+      @if (isGraphRenderer('cytoscape')) {
+        <app-dependency-graph-cytoscape
+          [graph]="filteredGraph()"
+          [graphIndex]="graphIndex()"
+          [selectedNodeId]="selectedNode()?.id ?? null"
+          (nodeSelected)="selectNode($event)"
+        />
+      } @else {
+        <app-dependency-graph-view
+          [graph]="filteredGraph()"
+          [graphIndex]="graphIndex()"
+          [selectedNodeId]="selectedNode()?.id ?? null"
+          (nodeSelected)="selectNode($event)"
+        />
+      }
     }
 
     <div class="legend-toolbar">
@@ -203,6 +208,21 @@
     </div>
 
     @if (selectedNode(); as node) {
+      <div class="detail-nav">
+        <button type="button" class="detail-nav-button" (click)="selectPreviousNode()" [disabled]="!canSelectPreviousNode()">
+          Prev node
+        </button>
+
+        <div class="detail-nav-status">
+          <span>Node</span>
+          <strong>{{ selectedNodePosition() + 1 }} / {{ navigableNodes().length }}</strong>
+        </div>
+
+        <button type="button" class="detail-nav-button" (click)="selectNextNode()" [disabled]="!canSelectNextNode()">
+          Next node
+        </button>
+      </div>
+
       <div class="detail-grid">
         <article>
           <span>Type</span>
@@ -250,17 +270,26 @@
 
       <div class="detail-block">
         <span class="detail-label">Connections</span>
-        @if (relatedEdges().length > 0) {
-          <ul class="connection-list">
-            @for (relation of relatedEdges(); track relation.edge.id) {
-              <li>
-                <strong>{{ relation.direction === 'out' ? 'uses' : 'used by' }}</strong>
-                <span>{{ relation.otherNode?.fullName ?? relation.edge.id }}</span>
-              </li>
-            }
-          </ul>
-        } @else {
-          <p>Ten węzeł nie ma połączeń w aktualnym wyniku.</p>
+        @if (relatedEdges(); as relations) {
+          @if (relations.length > 0) {
+            <ul class="connection-list">
+              @for (relation of relations; track relation.edge.id) {
+                <li>
+                  <button
+                    class="connection-item"
+                    type="button"
+                    (click)="selectRelatedNode(relation)"
+                    [disabled]="!relation.otherNode"
+                  >
+                    <strong>{{ relation.direction === 'out' ? 'uses' : 'used by' }}</strong>
+                    <span>{{ relation.otherNode?.fullName ?? relation.edge.id }}</span>
+                  </button>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p>Ten węzeł nie ma połączeń w aktualnym wyniku.</p>
+          }
         }
       </div>
     } @else {

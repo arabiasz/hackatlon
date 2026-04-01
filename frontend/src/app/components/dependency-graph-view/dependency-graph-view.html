@@ -1,0 +1,41 @@
+<div class="graph-shell" #graphShell>
+  @if (focusModeSummary(); as focusMode) {
+    <div class="focus-banner">
+      <strong>Focus mode</strong>
+      <span>
+        Pokazano {{ focusMode.visibleEdges }} z {{ focusMode.totalEdges }} połączeń i
+        {{ focusMode.visibleNodes }} z {{ focusMode.totalNodes }} węzłów wokół
+        {{ focusMode.selectedNodeName }}.
+      </span>
+      <span>Ukryto {{ focusMode.hiddenEdges }} połączeń i {{ focusMode.hiddenNodes }} węzłów.</span>
+    </div>
+  }
+
+  @if (graphLayout(); as layout) {
+    <div class="graph-canvas" [style.width.px]="layout.width" [style.height.px]="layout.height">
+      <canvas #graphCanvas class="graph-links"></canvas>
+
+      @for (point of layout.nodes; track trackNode($index, point)) {
+        <button
+          class="graph-node"
+          [class.selected]="selectedNode()?.id === point.node.id"
+          [class.requires-check]="point.node.requiresPermissionCheck"
+          [attr.data-tone]="nodeTone(point.node.type)"
+          [style.left.px]="point.x"
+          [style.top.px]="point.y"
+          type="button"
+          (click)="selectNode(point.node.id)"
+        >
+          <span class="node-type">{{ nodeTypeLabel(point.node.type) }}</span>
+          <strong>{{ point.node.fullName }}</strong>
+          <div class="node-meta">
+            <span>Depth {{ point.node.depth }}</span>
+            @if (point.node.requiresPermissionCheck) {
+              <span>Check hint</span>
+            }
+          </div>
+        </button>
+      }
+    </div>
+  }
+</div>

@@ -39,6 +39,10 @@ npm start
 
 Frontend używa proxy do `http://localhost:5199`.
 
+Przy `ng serve` / `npm start` proxy jest podpięte także w `angular.json`.
+Jeżeli frontend jest uruchomiony lokalnie na innym porcie niż backend i bez proxy, klient automatycznie kieruje API na `http://localhost:5199/api`.
+Backend dopuszcza skonfigurowane originy z `Cors:AllowedOrigins` oraz lokalne originy `localhost` / `127.0.0.1` na dowolnym porcie, więc niestandardowy port dev-servera nie blokuje testów lokalnych także poza profilem `Development`.
+
 ## Konfiguracja bazy
 
 Development connection string jest ustawiony w:

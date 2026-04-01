@@ -1,0 +1,38 @@
+<div class="cy-shell">
+  <div class="cy-overlay">
+    <span class="cy-badge">Cytoscape POC</span>
+    <p>Zoom, pan, fokus na sąsiedztwie i przełączanie układu bez ręcznego rysowania layoutu oraz krawędzi.</p>
+
+    @if (graph()?.summary; as summary) {
+      <div class="cy-metrics">
+        <span>{{ summary.nodes }} nodes</span>
+        <span>{{ summary.edges }} edges</span>
+        <span>Depth {{ summary.maxObservedDepth }}</span>
+        <span>Layout {{ activeLayoutOption().label }}</span>
+      </div>
+    }
+  </div>
+
+  <div class="cy-controls" aria-label="View controls">
+    <label class="cy-layout-field">
+      <span>Layout</span>
+      <select
+        class="cy-layout-select"
+        [value]="activeLayoutMode()"
+        (change)="setLayoutMode($any($event.target).value)"
+        [attr.aria-label]="'Graph layout'"
+        [title]="activeLayoutOption().note"
+      >
+        @for (option of layoutOptions; track option.value) {
+          <option [value]="option.value">{{ option.label }}</option>
+        }
+      </select>
+    </label>
+    <button class="cy-control-button" type="button" (click)="zoomOut()" title="Zoom out">-</button>
+    <span class="cy-zoom-readout">{{ (zoomLevel() * 100).toFixed(0) }}%</span>
+    <button class="cy-control-button" type="button" (click)="zoomIn()" title="Zoom in">+</button>
+    <button class="cy-control-reset" type="button" (click)="resetViewport()">Reset view</button>
+  </div>
+
+  <div class="cy-stage" #cyStage aria-label="Dependency graph rendered with Cytoscape"></div>
+</div>

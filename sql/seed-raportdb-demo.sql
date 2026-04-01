@@ -813,6 +813,41 @@ BEGIN
 END
 GO
 
+CREATE OR ALTER PROCEDURE dbo.usp_OneHop15ConnectionsDemo
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @dependencyProbe bigint = 0;
+
+    /*
+        Dedicated demo procedure for frontend performance testing.
+        It references exactly 15 non-procedure objects, so the graph shows
+        15 direct one-hop connections from a single entry procedure.
+    */
+
+    SELECT @dependencyProbe += COUNT_BIG(*) FROM dbo.Teams;
+    SELECT @dependencyProbe += COUNT_BIG(*) FROM dbo.MatchFixtures;
+    SELECT @dependencyProbe += COUNT_BIG(*) FROM dbo.Players;
+    SELECT @dependencyProbe += COUNT_BIG(*) FROM dbo.PenaltyDefinitions;
+    SELECT @dependencyProbe += COUNT_BIG(*) FROM dbo.PenaltyEvents;
+    SELECT @dependencyProbe += COUNT_BIG(*) FROM audit.PenaltyAudit;
+    SELECT @dependencyProbe += COUNT_BIG(*) FROM security.PlayerPermissions;
+    SELECT @dependencyProbe += COUNT_BIG(*) FROM staging.PenaltyIncoming;
+    SELECT @dependencyProbe += COUNT_BIG(*) FROM integration.PenaltyImportBatch;
+    SELECT @dependencyProbe += COUNT_BIG(*) FROM reporting.PenaltyDashboardCache;
+    SELECT @dependencyProbe += COUNT_BIG(*) FROM archive.PenaltyEventArchive;
+    SELECT @dependencyProbe += COUNT_BIG(*) FROM security.vw_PenaltyEvents;
+    SELECT @dependencyProbe += COUNT_BIG(*) FROM reporting.vw_PlayerPenaltyTotals;
+    SELECT @dependencyProbe += COUNT_BIG(*) FROM audit.vw_PenaltyReviewCandidates;
+    SELECT @dependencyProbe += COUNT_BIG(*) FROM reporting.vw_OpenPenaltyCases;
+
+    SELECT
+        DirectDependencyCount = 15,
+        DependencyProbe = @dependencyProbe;
+END
+GO
+
 CREATE OR ALTER PROCEDURE dbo.usp_PenaltySummary
 AS
 BEGIN
@@ -861,6 +896,7 @@ GO
 
 PRINT N'Demo objects for RaportDb are ready.';
 PRINT N'Try these procedures in the frontend:';
+PRINT N' - dbo.usp_OneHop15ConnectionsDemo';
 PRINT N' - dbo.usp_PenaltySummary';
 PRINT N' - dbo.usp_PenaltyDrilldown';
 PRINT N' - dbo.usp_RunNightlyPenaltyPipeline';

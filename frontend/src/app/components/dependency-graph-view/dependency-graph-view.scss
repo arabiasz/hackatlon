@@ -1,0 +1,139 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.graph-shell {
+  position: relative;
+  overflow: auto;
+  min-width: 0;
+  border-radius: 24px;
+  border: 1px solid rgba(19, 37, 36, 0.1);
+  background:
+    radial-gradient(circle at 20% 20%, rgba(201, 160, 90, 0.18), transparent 30%),
+    radial-gradient(circle at 82% 18%, rgba(20, 82, 79, 0.14), transparent 26%),
+    linear-gradient(180deg, rgba(255, 252, 246, 0.95), rgba(247, 242, 230, 0.86));
+  contain: layout paint;
+}
+
+.focus-banner {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid rgba(19, 37, 36, 0.09);
+  background: rgba(255, 249, 239, 0.92);
+  backdrop-filter: blur(10px);
+  color: var(--tone-muted);
+  font-size: 0.84rem;
+}
+
+.focus-banner strong {
+  color: var(--tone-ink);
+  font-size: 0.74rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.graph-canvas {
+  position: relative;
+  min-width: 100%;
+  min-height: 300px;
+}
+
+.graph-links {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.graph-node {
+  position: absolute;
+  display: grid;
+  gap: 0.45rem;
+  width: 248px;
+  padding: 0.95rem 1rem;
+  border-radius: 22px;
+  border: 1px solid rgba(19, 37, 36, 0.12);
+  background: rgba(255, 250, 240, 0.96);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(18, 35, 33, 0.08);
+  transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+  contain: layout paint;
+}
+
+.graph-node:hover,
+.graph-node.selected {
+  transform: translateY(-2px);
+  border-color: rgba(19, 37, 36, 0.28);
+  box-shadow: 0 14px 30px rgba(18, 35, 33, 0.12);
+}
+
+.graph-node:focus-visible {
+  outline: 2px solid rgba(20, 82, 79, 0.35);
+  outline-offset: 2px;
+}
+
+.graph-node.requires-check {
+  border-color: rgba(164, 77, 43, 0.34);
+}
+
+.node-type {
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--tone-muted);
+}
+
+.graph-node strong {
+  font-size: 0.96rem;
+  line-height: 1.2;
+  color: var(--tone-ink);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.node-meta {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  color: var(--tone-muted);
+  font-size: 0.8rem;
+}
+
+.graph-node[data-tone='procedure'] {
+  background: rgba(253, 247, 235, 0.98);
+}
+
+.graph-node[data-tone='table'] {
+  background: rgba(235, 247, 244, 0.98);
+}
+
+.graph-node[data-tone='view'] {
+  background: rgba(250, 238, 228, 0.98);
+}
+
+.graph-node[data-tone='function'],
+.graph-node[data-tone='external'] {
+  background: rgba(241, 237, 255, 0.96);
+}
+
+.graph-node[data-tone='unknown'] {
+  background: rgba(255, 239, 239, 0.98);
+}
+
+@media (max-width: 720px) {
+  .graph-shell {
+    border-radius: 20px;
+  }
+
+  .focus-banner {
+    padding: 0.75rem 0.85rem;
+  }
+}
